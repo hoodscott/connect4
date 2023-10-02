@@ -58,10 +58,12 @@ html {
   gap: 0.25rem;
 }
 
-
-
 button {
   cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
 }
 
 .visually-hidden {

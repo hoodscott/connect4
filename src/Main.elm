@@ -2,7 +2,7 @@ module Main exposing (main)
 
 import Browser
 import Html exposing (..)
-import Html.Attributes exposing (class, href, rel)
+import Html.Attributes exposing (class, disabled, href, rel)
 import Html.Events exposing (onClick)
 import List.Extra
 
@@ -81,9 +81,14 @@ update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         SelectedColumn columnSelected ->
-            ( addPieceToCol columnSelected (playerPiece model.state) model
-            , Cmd.none
-            )
+            case model.state of
+                GameOver _ ->
+                    ( model, Cmd.none )
+
+                _ ->
+                    ( addPieceToCol columnSelected (playerPiece model.state) model
+                    , Cmd.none
+                    )
 
         RestartedGame ->
             ( initialModel, Cmd.none )
@@ -134,17 +139,22 @@ nextTurn state board =
 
 checkWin : Board -> Maybe Status
 checkWin board =
-    case List.filterMap checkColumn board of
-        columnWin :: _ ->
-            Just columnWin
+    case List.filter (\column -> List.member Empty column) board of
+        [] ->
+            Just Draw
 
         _ ->
-            case List.Extra.transpose board |> List.filterMap checkColumn of
-                rowWin :: _ ->
-                    Just rowWin
+            case List.filterMap checkColumn board of
+                columnWin :: _ ->
+                    Just columnWin
 
                 _ ->
-                    Nothing
+                    case List.Extra.transpose board |> List.filterMap checkColumn of
+                        rowWin :: _ ->
+                            Just rowWin
+
+                        _ ->
+                            Nothing
 
 
 checkColumn : List Piece -> Maybe Status
@@ -179,10 +189,6 @@ subscriptions _ =
 
 view : Model -> Html Msg
 view model =
-    let
-        _ =
-            Debug.log "model" model
-    in
     main_ []
         [ node "link" [ rel "stylesheet", href "style.css" ] []
         , h1 [] [ text "connect 4" ]
@@ -217,7 +223,19 @@ viewGameStatus turn =
 
 viewColumn : Int -> BoardColumn -> Html Msg
 viewColumn columnIndex column =
-    button [ class "column", onClick <| SelectedColumn columnIndex ] <|
+    let
+        canPlaceMore =
+            List.member Empty column
+    in
+    button
+        [ class "column"
+        , if canPlaceMore then
+            onClick <| SelectedColumn columnIndex
+
+          else
+            disabled True
+        ]
+    <|
         List.reverse <|
             List.map viewPiece column
 
