@@ -1,9 +1,17 @@
 html {
   text-align: center;
+  font-size: 1.5rem;
 }
 
 * {
   box-sizing: border-box;
+}
+
+input,
+button,
+textarea,
+select {
+  font: inherit;
 }
 
 .piece {

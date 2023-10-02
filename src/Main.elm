@@ -3,8 +3,8 @@ module Main exposing (main)
 import Browser
 import Diagonal exposing (listDiagonalTranspose)
 import Html exposing (..)
-import Html.Attributes exposing (class, disabled, href, name, rel)
-import Html.Events exposing (onClick)
+import Html.Attributes exposing (autocomplete, class, disabled, for, href, id, name, rel, required, type_, value)
+import Html.Events exposing (onClick, onInput, onSubmit)
 import List.Extra
 import Random
 import Random.List
@@ -33,7 +33,8 @@ main =
 type alias Model =
     { board : Board
     , state : GameState
-    , players : Players
+    , players : Maybe Players
+    , formFields : FormFields
     }
 
 
@@ -77,6 +78,14 @@ type AIType
     | AIUnimplemented
 
 
+type alias FormFields =
+    { player1Name : String
+    , player1Type : String
+    , player2Name : String
+    , player2Type : String
+    }
+
+
 
 -- INIT --
 
@@ -88,10 +97,16 @@ boardSize =
 
 initialModel : Model
 initialModel =
-    { board = List.repeat boardSize.x (List.repeat boardSize.y Empty)
+    { board = createBoard
     , state = Player1ToPlay
-    , players = ( Human "scott", AI AIRandom "ai player" )
+    , players = Just ( Human "scott", AI AIRandom "ai player" )
+    , formFields = { player1Name = "", player2Name = "", player1Type = "0", player2Type = "0" }
     }
+
+
+createBoard : List (List Piece)
+createBoard =
+    List.repeat boardSize.x (List.repeat boardSize.y Empty)
 
 
 init : Flags -> ( Model, Cmd Msg )
@@ -104,10 +119,18 @@ init _ =
 
 
 type Msg
-    = SelectedColumn Int
+    = --game stuff
+      SelectedColumn Int
     | StartedAIMove
     | GeneratedAIMove (Maybe Int)
     | RestartedGame
+    | ClearedPlayers
+      -- setup form stuff
+    | SubmittedPlayerSelectForm
+    | ChangedPlayer1Name String
+    | ChangedPlayer1Select String
+    | ChangedPlayer2Name String
+    | ChangedPlayer2Select String
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -124,7 +147,12 @@ update msg model =
                     )
 
         StartedAIMove ->
-            ( model, aiSelectMove (currentPlayer model.state model.players) model.board )
+            case model.players of
+                Just players ->
+                    ( model, aiSelectMove (currentPlayer model.state players) model.board )
+
+                Nothing ->
+                    ( model, Cmd.none )
 
         GeneratedAIMove maybeMove ->
             case maybeMove of
@@ -135,7 +163,51 @@ update msg model =
                     ( model, Cmd.none )
 
         RestartedGame ->
-            ( initialModel, Cmd.none )
+            ( { model | board = createBoard, state = Player1ToPlay }, Cmd.none )
+
+        ClearedPlayers ->
+            ( { model | players = Nothing }, Cmd.none )
+
+        SubmittedPlayerSelectForm ->
+            if not <| validateForm model.formFields then
+                ( model, Cmd.none )
+
+            else
+                ( { model
+                    | players = createNewPlayers model.formFields
+                    , board = createBoard
+                    , state = Player1ToPlay
+                  }
+                , Cmd.none
+                )
+
+        ChangedPlayer1Name name ->
+            let
+                updFormFields formFields =
+                    { formFields | player1Name = name }
+            in
+            ( { model | formFields = updFormFields model.formFields }, Cmd.none )
+
+        ChangedPlayer1Select controller ->
+            let
+                updFormFields formFields =
+                    { formFields | player1Type = controller }
+            in
+            ( { model | formFields = updFormFields model.formFields }, Cmd.none )
+
+        ChangedPlayer2Name name ->
+            let
+                updFormFields formFields =
+                    { formFields | player2Name = name }
+            in
+            ( { model | formFields = updFormFields model.formFields }, Cmd.none )
+
+        ChangedPlayer2Select controller ->
+            let
+                updFormFields formFields =
+                    { formFields | player2Type = controller }
+            in
+            ( { model | formFields = updFormFields model.formFields }, Cmd.none )
 
 
 playerPiece : GameState -> Piece
@@ -279,6 +351,40 @@ aiSelectMove player board =
             Cmd.none
 
 
+validateForm : FormFields -> Bool
+validateForm formFields =
+    formFields.player1Name
+        /= ""
+        && formFields.player2Name
+        /= ""
+        && formFields.player1Type
+        /= ""
+        && formFields.player1Type
+        /= ""
+
+
+createNewPlayers : FormFields -> Maybe Players
+createNewPlayers formFields =
+    let
+        createPlayer typeField nameField =
+            case typeField formFields of
+                "0" ->
+                    Just (Human <| nameField formFields)
+
+                "1" ->
+                    Just (AI AIRandom <| nameField formFields)
+
+                _ ->
+                    Nothing
+    in
+    case ( createPlayer .player1Type .player1Name, createPlayer .player2Type .player2Name ) of
+        ( Just pp1, Just pp2 ) ->
+            Just ( pp1, pp2 )
+
+        _ ->
+            Nothing
+
+
 
 -- SUBSCRIPTIONS --
 
@@ -294,15 +400,85 @@ subscriptions _ =
 
 view : Model -> Html Msg
 view model =
-    main_ []
+    main_ [] <|
         [ node "link" [ rel "stylesheet", href "style.css" ] []
         , h1 [] [ text "connect 4" ]
-        , div [ class "columns" ] <|
-            List.indexedMap (viewColumn model.players (checkIsHumanTurn model.players model.state) (checkGameOver model.state)) model.board
-        , h2 [] [ viewGameStatus model.players model.state ]
-        , hr [] []
-        , button [ onClick RestartedGame ] [ text "Restart Game" ]
         ]
+            ++ (case model.players of
+                    Just players ->
+                        [ div [ class "columns" ] <|
+                            List.indexedMap
+                                (viewColumn players
+                                    (checkIsHumanTurn players model.state)
+                                    (checkGameOver model.state)
+                                )
+                                model.board
+                        , h2 [] [ viewGameStatus players model.state ]
+                        , hr [] []
+                        , button [ onClick RestartedGame ] [ text "Restart Game" ]
+                        , button [ onClick ClearedPlayers ] [ text "Back to player select" ]
+                        ]
+
+                    Nothing ->
+                        let
+                            options =
+                                [ "Human", "Random AI", "Unimplemented AI" ]
+
+                            viewPlayerSelect playerLabel playerName playerNameEvent playerType playerTypeEvent =
+                                fieldset []
+                                    [ legend [] [ text playerLabel ]
+                                    , div []
+                                        [ label
+                                            [ for <| playerLabel ++ "name" ]
+                                            [ text "Name:" ]
+                                        , input
+                                            [ required True
+                                            , onInput playerNameEvent
+                                            , value playerName
+                                            , autocomplete False
+                                            , id <| playerLabel ++ "name"
+                                            ]
+                                            []
+                                        ]
+                                    , div []
+                                        [ label
+                                            [ for <| playerLabel ++ "control" ]
+                                            [ text "Controller:" ]
+                                        , select
+                                            [ required True
+                                            , onInput playerTypeEvent
+                                            , value playerType
+                                            , autocomplete False
+                                            , id <| playerLabel ++ "control"
+                                            ]
+                                          <|
+                                            List.indexedMap
+                                                (\index choice ->
+                                                    option
+                                                        [ value <| String.fromInt index ]
+                                                        [ text choice ]
+                                                )
+                                                options
+                                        ]
+                                    ]
+                        in
+                        [ form [ onSubmit SubmittedPlayerSelectForm ]
+                            [ viewPlayerSelect
+                                "Player 1"
+                                model.formFields.player1Name
+                                ChangedPlayer1Name
+                                model.formFields.player1Type
+                                ChangedPlayer1Select
+                            , viewPlayerSelect
+                                "Player 2"
+                                model.formFields.player2Name
+                                ChangedPlayer2Name
+                                model.formFields.player2Type
+                                ChangedPlayer2Select
+                            , button [ type_ "submit" ] [ text "Start Game" ]
+                            ]
+                        ]
+               )
 
 
 checkIsHumanTurn : Players -> GameState -> Bool
