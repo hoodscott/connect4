@@ -1,13 +1,16 @@
 module Main exposing (main)
 
+import AI
 import Browser
 import Diagonal exposing (listDiagonalTranspose)
 import Html exposing (..)
 import Html.Attributes exposing (autocomplete, class, disabled, for, href, id, name, rel, required, type_, value)
 import Html.Events exposing (onClick, onInput, onSubmit)
 import List.Extra
+import Platform exposing (Task)
 import Random
 import Random.List
+import Task
 
 
 type alias Flags =
@@ -28,13 +31,16 @@ main =
 -- TYPES --
 
 
-{-| Board is list of Columns (which is a list of Pieces)
--}
 type alias Model =
-    { board : Board
-    , state : GameState
+    { game : Game
     , players : Maybe Players
     , formFields : FormFields
+    }
+
+
+type alias Game =
+    { board : Board
+    , state : State
     }
 
 
@@ -52,7 +58,7 @@ type Piece
     | Empty
 
 
-type GameState
+type State
     = Player1ToPlay
     | Player2ToPlay
     | GameOver Status
@@ -75,7 +81,7 @@ type PlayerType
 
 type AIType
     = AIRandom
-    | AIUnimplemented
+    | AIMinimax
 
 
 type alias FormFields =
@@ -97,9 +103,11 @@ boardSize =
 
 initialModel : Model
 initialModel =
-    { board = createBoard
-    , state = Player1ToPlay
-    , players = Just ( Human "scott", AI AIRandom "ai player" )
+    { game =
+        { board = createBoard
+        , state = Player1ToPlay
+        }
+    , players = Just ( Human "scott", AI AIMinimax "minimax" )
     , formFields = { player1Name = "", player2Name = "", player1Type = "0", player2Type = "0" }
     }
 
@@ -137,19 +145,23 @@ update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         SelectedColumn columnSelected ->
-            case model.state of
+            case model.game.state of
                 GameOver _ ->
                     ( model, Cmd.none )
 
                 _ ->
-                    ( addPieceToCol columnSelected (playerPiece model.state) model
+                    ( { model | game = addPieceToCol model.game columnSelected }
                     , Cmd.none
                     )
 
         StartedAIMove ->
             case model.players of
                 Just players ->
-                    ( model, aiSelectMove (currentPlayer model.state players) model.board )
+                    ( model
+                    , aiSelectMove
+                        (currentPlayer model.game.state players)
+                        model.game
+                    )
 
                 Nothing ->
                     ( model, Cmd.none )
@@ -163,7 +175,7 @@ update msg model =
                     ( model, Cmd.none )
 
         RestartedGame ->
-            ( { model | board = createBoard, state = Player1ToPlay }, Cmd.none )
+            ( { model | game = { board = createBoard, state = Player1ToPlay } }, Cmd.none )
 
         ClearedPlayers ->
             ( { model | players = Nothing }, Cmd.none )
@@ -175,8 +187,10 @@ update msg model =
             else
                 ( { model
                     | players = createNewPlayers model.formFields
-                    , board = createBoard
-                    , state = Player1ToPlay
+                    , game =
+                        { board = createBoard
+                        , state = Player1ToPlay
+                        }
                   }
                 , Cmd.none
                 )
@@ -210,22 +224,21 @@ update msg model =
             ( { model | formFields = updFormFields model.formFields }, Cmd.none )
 
 
-playerPiece : GameState -> Piece
-playerPiece state =
-    case state of
-        Player1ToPlay ->
-            Player1Piece
+addPieceToCol : Game -> Int -> Game
+addPieceToCol game columnSelected =
+    let
+        piece =
+            case game.state of
+                Player1ToPlay ->
+                    Player1Piece
 
-        Player2ToPlay ->
-            Player2Piece
+                Player2ToPlay ->
+                    Player2Piece
 
-        GameOver _ ->
-            Empty
-
-
-addPieceToCol : Int -> Piece -> Model -> Model
-addPieceToCol columnSelected piece model =
-    case List.Extra.getAt columnSelected model.board of
+                GameOver _ ->
+                    Empty
+    in
+    case List.Extra.getAt columnSelected game.board of
         Just newCol ->
             case List.Extra.findIndex (\p -> p == Empty) newCol of
                 Just insertIndex ->
@@ -234,21 +247,20 @@ addPieceToCol columnSelected piece model =
                             List.Extra.setAt
                                 columnSelected
                                 (List.Extra.setAt insertIndex piece newCol)
-                                model.board
+                                game.board
                     in
-                    { model
-                        | board = newBoard
-                        , state = nextTurn model.state newBoard
+                    { board = newBoard
+                    , state = nextTurn game.state newBoard
                     }
 
                 Nothing ->
-                    model
+                    game
 
         Nothing ->
-            model
+            game
 
 
-nextTurn : GameState -> Board -> GameState
+nextTurn : State -> Board -> State
 nextTurn state board =
     case checkWin board of
         Just status ->
@@ -308,7 +320,7 @@ checkColumn column =
         Nothing
 
 
-currentPlayer : GameState -> Players -> PlayerType
+currentPlayer : State -> Players -> PlayerType
 currentPlayer state players =
     case state of
         Player1ToPlay ->
@@ -321,34 +333,63 @@ currentPlayer state players =
             Tuple.first players
 
 
-aiSelectMove : PlayerType -> Board -> Cmd Msg
-aiSelectMove player board =
+isFirstPlayer : State -> Bool
+isFirstPlayer state =
+    case state of
+        Player1ToPlay ->
+            True
+
+        Player2ToPlay ->
+            False
+
+        GameOver _ ->
+            True
+
+
+aiSelectMove : PlayerType -> Game -> Cmd Msg
+aiSelectMove player game =
+    let
+        send msg =
+            Task.succeed msg |> Task.perform identity
+    in
     case player of
         AI AIRandom _ ->
             let
-                possibleMoves =
-                    List.indexedMap
-                        (\index column ->
-                            if List.member Empty column then
-                                index
-
-                            else
-                                -1
-                        )
-                        board
-                        |> List.filter (\index -> index >= 0)
-
                 gen : Random.Generator (Maybe Int)
                 gen =
-                    Random.List.choose possibleMoves |> Random.map (\tuple -> Tuple.first tuple)
+                    Random.List.choose (possibleMoves game) |> Random.map (\tuple -> Tuple.first tuple)
             in
             Random.generate GeneratedAIMove gen
 
-        AI AIUnimplemented _ ->
-            Debug.todo "add another variety of AI"
+        AI AIMinimax _ ->
+            send <| GeneratedAIMove (AI.getMoveWithMinimax getNextMoves scoreMove 2 game)
 
         Human _ ->
             Cmd.none
+
+
+scoreMove : Game -> number
+scoreMove game =
+    0
+
+
+getNextMoves : Game -> List Game
+getNextMoves game =
+    List.map (addPieceToCol game) (possibleMoves game)
+
+
+possibleMoves : Game -> List Int
+possibleMoves game =
+    List.indexedMap
+        (\index column ->
+            if List.member Empty column then
+                index
+
+            else
+                -1
+        )
+        game.board
+        |> List.filter (\index -> index >= 0)
 
 
 validateForm : FormFields -> Bool
@@ -373,6 +414,9 @@ createNewPlayers formFields =
 
                 "1" ->
                     Just (AI AIRandom <| nameField formFields)
+
+                "2" ->
+                    Just (AI AIMinimax <| nameField formFields)
 
                 _ ->
                     Nothing
@@ -409,11 +453,11 @@ view model =
                         [ div [ class "columns" ] <|
                             List.indexedMap
                                 (viewColumn players
-                                    (checkIsHumanTurn players model.state)
-                                    (checkGameOver model.state)
+                                    (checkIsHumanTurn players model.game.state)
+                                    (checkGameOver model.game.state)
                                 )
-                                model.board
-                        , h2 [] [ viewGameStatus players model.state ]
+                                model.game.board
+                        , h2 [] [ viewGameStatus players model.game.state ]
                         , hr [] []
                         , button [ onClick RestartedGame ] [ text "Restart Game" ]
                         , button [ onClick ClearedPlayers ] [ text "Back to player select" ]
@@ -422,7 +466,7 @@ view model =
                     Nothing ->
                         let
                             options =
-                                [ "Human", "Random AI", "Unimplemented AI" ]
+                                [ "Human", "Random AI", "Minimax AI" ]
 
                             viewPlayerSelect playerLabel playerName playerNameEvent playerType playerTypeEvent =
                                 fieldset []
@@ -481,7 +525,7 @@ view model =
                )
 
 
-checkIsHumanTurn : Players -> GameState -> Bool
+checkIsHumanTurn : Players -> State -> Bool
 checkIsHumanTurn players state =
     let
         tuple =
@@ -503,7 +547,7 @@ checkIsHumanTurn players state =
             False
 
 
-checkGameOver : GameState -> Bool
+checkGameOver : State -> Bool
 checkGameOver state =
     case state of
         GameOver _ ->
@@ -513,7 +557,7 @@ checkGameOver state =
             False
 
 
-viewGameStatus : Players -> GameState -> Html Msg
+viewGameStatus : Players -> State -> Html Msg
 viewGameStatus players turn =
     let
         addAIButton player =
