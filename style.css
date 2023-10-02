@@ -16,7 +16,7 @@ html {
   border: 2px solid grey;
 }
 
-.piece.red {
+.piece.p1 {
   background-color: red;
   /* background: repeating-linear-gradient(45deg,
       red,
@@ -25,7 +25,7 @@ html {
       firebrick 8px); */
 }
 
-.piece.yellow {
+.piece.p2 {
   background-color: yellow;
   /* background: repeating-linear-gradient(-45deg,
       yellow,

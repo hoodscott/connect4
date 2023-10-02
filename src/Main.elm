@@ -55,8 +55,8 @@ type Status
 
 
 type Piece
-    = Red
-    | Yellow
+    = Player1Piece
+    | Player2Piece
     | Empty
 
 
@@ -111,10 +111,10 @@ playerPiece : GameState -> Piece
 playerPiece state =
     case state of
         Player1ToPlay ->
-            Red
+            Player1Piece
 
         Player2ToPlay ->
-            Yellow
+            Player2Piece
 
         GameOver _ ->
             Empty
@@ -195,10 +195,10 @@ checkWin board =
 
 checkColumn : BoardColumn -> Maybe Status
 checkColumn column =
-    if List.Extra.isInfixOf [ Red, Red, Red, Red ] column then
+    if List.Extra.isInfixOf [ Player1Piece, Player1Piece, Player1Piece, Player1Piece ] column then
         Just Player1Win
 
-    else if List.Extra.isInfixOf [ Yellow, Yellow, Yellow, Yellow ] column then
+    else if List.Extra.isInfixOf [ Player2Piece, Player2Piece, Player2Piece, Player2Piece ] column then
         Just Player2Win
 
     else
@@ -284,16 +284,16 @@ viewColumn isGameOver columnIndex column =
 viewPiece : Piece -> Html msg
 viewPiece piece =
     let
-        pieceString =
+        pieceStrings =
             case piece of
                 Empty ->
-                    "empty"
+                    ( "empty", "Empty" )
 
-                Red ->
-                    "red"
+                Player1Piece ->
+                    ( "p1", "Player 1's piece" )
 
-                Yellow ->
-                    "yellow"
+                Player2Piece ->
+                    ( "p2", "Player 2's piece" )
     in
-    div [ class "piece", class pieceString ]
-        [ span [ class "visually-hidden" ] [ text pieceString ] ]
+    div [ class "piece", class <| Tuple.first pieceStrings ]
+        [ span [ class "visually-hidden" ] [ text <| Tuple.second pieceStrings ] ]
