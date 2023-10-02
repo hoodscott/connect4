@@ -1,0 +1,35 @@
+.piece {
+  height: 2rem;
+  width: 2rem;
+  border-radius: 50%;
+  background-color: grey;
+}
+
+.piece.red {
+  background-color: red;
+}
+
+.piece.yellow {
+  background-color: yellow;
+}
+
+.columns {
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+}
+
+.column {
+  display: flex;
+  flex-direction: column;
+}
+
+.columns,
+.column {
+  gap: 0.25rem;
+}
+
+html {
+  text-align: center;
+  box-sizing: border-box;
+}
