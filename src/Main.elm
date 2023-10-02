@@ -131,6 +131,7 @@ type Msg
       SelectedColumn Int
     | StartedAIMove
     | GeneratedAIMove (Maybe Int)
+    | SelectedAIMove (Maybe Int)
     | RestartedGame
     | ClearedPlayers
       -- setup form stuff
@@ -170,6 +171,14 @@ update msg model =
             case maybeMove of
                 Just move ->
                     update (SelectedColumn move) model
+
+                _ ->
+                    ( model, Cmd.none )
+
+        SelectedAIMove maybeMove ->
+            case maybeMove of
+                Just move ->
+                    update (SelectedColumn (Maybe.withDefault 0 (List.Extra.getAt move <| possibleMoves model.game))) model
 
                 _ ->
                     ( model, Cmd.none )
@@ -333,19 +342,6 @@ currentPlayer state players =
             Tuple.first players
 
 
-isFirstPlayer : State -> Bool
-isFirstPlayer state =
-    case state of
-        Player1ToPlay ->
-            True
-
-        Player2ToPlay ->
-            False
-
-        GameOver _ ->
-            True
-
-
 aiSelectMove : PlayerType -> Game -> Cmd Msg
 aiSelectMove player game =
     let
@@ -362,7 +358,7 @@ aiSelectMove player game =
             Random.generate GeneratedAIMove gen
 
         AI AIMinimax _ ->
-            send <| GeneratedAIMove (AI.getMoveWithMinimax getNextMoves scoreMove 2 game)
+            send <| SelectedAIMove (AI.getMoveWithMinimax getNextMoves scoreMove 1 game |> Debug.log "minimaxchose")
 
         Human _ ->
             Cmd.none
@@ -370,12 +366,37 @@ aiSelectMove player game =
 
 scoreMove : Game -> number
 scoreMove game =
-    0
+    case game.state of
+        GameOver status ->
+            case status of
+                Draw ->
+                    0
+
+                Player1Win ->
+                    20
+
+                Player2Win ->
+                    -20
+
+        Player1ToPlay ->
+            0
+
+        Player2ToPlay ->
+            0
 
 
 getNextMoves : Game -> List Game
 getNextMoves game =
-    List.map (addPieceToCol game) (possibleMoves game)
+    case game.state of
+        GameOver _ ->
+            []
+
+        _ ->
+            let
+                poss =
+                    Debug.log "possuible" (possibleMoves game)
+            in
+            List.map (addPieceToCol game) poss
 
 
 possibleMoves : Game -> List Int
