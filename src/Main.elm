@@ -3,7 +3,7 @@ module Main exposing (main)
 import Browser
 import Diagonal exposing (listDiagonalTranspose)
 import Html exposing (..)
-import Html.Attributes exposing (class, disabled, href, rel)
+import Html.Attributes exposing (class, disabled, href, name, rel)
 import Html.Events exposing (onClick)
 import List.Extra
 
@@ -31,6 +31,7 @@ main =
 type alias Model =
     { board : Board
     , state : GameState
+    , players : Players
     }
 
 
@@ -40,6 +41,12 @@ type alias Board =
 
 type alias BoardColumn =
     List Piece
+
+
+type Piece
+    = Player1Piece
+    | Player2Piece
+    | Empty
 
 
 type GameState
@@ -54,10 +61,13 @@ type Status
     | Draw
 
 
-type Piece
-    = Player1Piece
-    | Player2Piece
-    | Empty
+type alias Players =
+    ( PlayerType, PlayerType )
+
+
+type PlayerType
+    = Human String
+    | AI String
 
 
 
@@ -73,6 +83,7 @@ initialModel : Model
 initialModel =
     { board = List.repeat boardSize.x (List.repeat boardSize.y Empty)
     , state = Player1ToPlay
+    , players = ( Human "first player", Human "second player" )
     }
 
 
@@ -223,9 +234,9 @@ view model =
     main_ []
         [ node "link" [ rel "stylesheet", href "style.css" ] []
         , h1 [] [ text "connect 4" ]
-        , h2 [] [ viewGameStatus model.state ]
+        , h2 [] [ viewGameStatus model.players model.state ]
         , div [ class "columns" ] <|
-            List.indexedMap (viewColumn (checkGameOver model.state)) model.board
+            List.indexedMap (viewColumn model.players (checkGameOver model.state)) model.board
         , hr [] []
         , button [ onClick RestartedGame ] [ text "Restart Game" ]
         ]
@@ -241,29 +252,39 @@ checkGameOver state =
             False
 
 
-viewGameStatus : GameState -> Html Msg
-viewGameStatus turn =
+viewGameStatus : Players -> GameState -> Html Msg
+viewGameStatus players turn =
     case turn of
         Player1ToPlay ->
-            text "player 1's turn"
+            text <| (getName <| Tuple.first players) ++ "'s turn"
 
         Player2ToPlay ->
-            text "player 2's turn"
+            text <| (getName <| Tuple.second players) ++ "'s turn"
 
         GameOver status ->
             case status of
                 Player1Win ->
-                    text "player 1 wins"
+                    text <| (getName <| Tuple.first players) ++ " wins!"
 
                 Player2Win ->
-                    text "player 2 wins"
+                    text <| (getName <| Tuple.second players) ++ " wins!"
 
                 Draw ->
                     text "tied game"
 
 
-viewColumn : Bool -> Int -> BoardColumn -> Html Msg
-viewColumn isGameOver columnIndex column =
+getName : PlayerType -> String
+getName playerType =
+    case playerType of
+        Human name ->
+            name
+
+        AI name ->
+            name
+
+
+viewColumn : Players -> Bool -> Int -> BoardColumn -> Html Msg
+viewColumn players isGameOver columnIndex column =
     let
         canPlaceMore =
             List.member Empty column
@@ -278,11 +299,11 @@ viewColumn isGameOver columnIndex column =
         ]
     <|
         List.reverse <|
-            List.map viewPiece column
+            List.map (viewPiece players) column
 
 
-viewPiece : Piece -> Html msg
-viewPiece piece =
+viewPiece : Players -> Piece -> Html msg
+viewPiece players piece =
     let
         pieceStrings =
             case piece of
@@ -290,10 +311,10 @@ viewPiece piece =
                     ( "empty", "Empty" )
 
                 Player1Piece ->
-                    ( "p1", "Player 1's piece" )
+                    ( "p1", (getName <| Tuple.first players) ++ "'s piece" )
 
                 Player2Piece ->
-                    ( "p2", "Player 2's piece" )
+                    ( "p2", (getName <| Tuple.second players) ++ "'s piece" )
     in
     div [ class "piece", class <| Tuple.first pieceStrings ]
         [ span [ class "visually-hidden" ] [ text <| Tuple.second pieceStrings ] ]
