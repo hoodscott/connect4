@@ -1,9 +1,8 @@
 module Main exposing (main)
 
-import Array exposing (Array)
 import Browser
 import Html exposing (..)
-import Html.Attributes exposing (..)
+import Html.Attributes exposing (class, href, rel)
 import Html.Events exposing (onClick)
 import List.Extra
 
@@ -30,9 +29,17 @@ main =
 {-| board is list of columns (column is list of pieces)
 -}
 type alias Model =
-    { board : Array (Array Piece)
+    { board : Board
     , state : GameState
     }
+
+
+type alias Board =
+    List BoardColumn
+
+
+type alias BoardColumn =
+    List Piece
 
 
 type GameState
@@ -55,7 +62,7 @@ type Piece
 
 initialModel : Model
 initialModel =
-    { board = Array.repeat boardSize.x (Array.repeat boardSize.y Empty)
+    { board = List.repeat boardSize.x (List.repeat boardSize.y Empty)
     , state = Player1ToPlay
     }
 
@@ -74,7 +81,9 @@ update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         SelectedColumn columnSelected ->
-            ( addPieceToCol columnSelected (playerPiece model.state) model, Cmd.none )
+            ( addPieceToCol columnSelected (playerPiece model.state) model
+            , Cmd.none
+            )
 
         RestartedGame ->
             ( initialModel, Cmd.none )
@@ -82,17 +91,20 @@ update msg model =
 
 addPieceToCol : Int -> Piece -> Model -> Model
 addPieceToCol columnSelected piece model =
-    case Array.get columnSelected model.board of
+    case List.Extra.getAt columnSelected model.board of
         Just newCol ->
-            case List.Extra.findIndex (\p -> p == Empty) (Array.toList newCol) of
+            case List.Extra.findIndex (\p -> p == Empty) newCol of
                 Just insertIndex ->
-                    { model
-                        | board =
-                            Array.set
+                    let
+                        newBoard =
+                            List.Extra.setAt
                                 columnSelected
-                                (Array.set insertIndex piece newCol)
+                                (List.Extra.setAt insertIndex piece newCol)
                                 model.board
-                        , state = nextTurn model.state
+                    in
+                    { model
+                        | board = newBoard
+                        , state = nextTurn model.state newBoard
                     }
 
                 Nothing ->
@@ -102,17 +114,49 @@ addPieceToCol columnSelected piece model =
             model
 
 
-nextTurn : GameState -> GameState
-nextTurn state =
-    case state of
-        Player1ToPlay ->
-            Player2ToPlay
+nextTurn : GameState -> Board -> GameState
+nextTurn state board =
+    case checkWin board of
+        Just status ->
+            GameOver status
 
-        Player2ToPlay ->
-            Player1ToPlay
+        Nothing ->
+            case state of
+                Player1ToPlay ->
+                    Player2ToPlay
 
-        GameOver _ ->
-            state
+                Player2ToPlay ->
+                    Player1ToPlay
+
+                GameOver _ ->
+                    state
+
+
+checkWin : Board -> Maybe Status
+checkWin board =
+    case List.filterMap checkColumn board of
+        columnWin :: _ ->
+            Just columnWin
+
+        _ ->
+            case List.Extra.transpose board |> List.filterMap checkColumn of
+                rowWin :: _ ->
+                    Just rowWin
+
+                _ ->
+                    Nothing
+
+
+checkColumn : List Piece -> Maybe Status
+checkColumn column =
+    if List.Extra.isInfixOf [ Red, Red, Red, Red ] column then
+        Just Player1Win
+
+    else if List.Extra.isInfixOf [ Yellow, Yellow, Yellow, Yellow ] column then
+        Just Player2Win
+
+    else
+        Nothing
 
 
 playerPiece : GameState -> Piece
@@ -144,8 +188,8 @@ view model =
         , h1 [] [ text "connect 4" ]
         , h2 [] [ viewGameStatus model.state ]
         , div [ class "columns" ] <|
-            Array.toList <|
-                Array.indexedMap viewColumn model.board
+            List.indexedMap viewColumn model.board
+        , hr [] []
         , button [ onClick RestartedGame ] [ text "Restart Game" ]
         ]
 
@@ -171,22 +215,26 @@ viewGameStatus turn =
                     text "tied game"
 
 
-viewColumn : Int -> Array Piece -> Html Msg
+viewColumn : Int -> BoardColumn -> Html Msg
 viewColumn columnIndex column =
-    div [ class "column", onClick <| SelectedColumn columnIndex ] <|
+    button [ class "column", onClick <| SelectedColumn columnIndex ] <|
         List.reverse <|
-            Array.toList <|
-                Array.map viewPiece column
+            List.map viewPiece column
 
 
 viewPiece : Piece -> Html msg
 viewPiece piece =
-    case piece of
-        Empty ->
-            div [ class "piece empty" ] []
+    let
+        pieceString =
+            case piece of
+                Empty ->
+                    "empty"
 
-        Red ->
-            div [ class "piece red" ] []
+                Red ->
+                    "red"
 
-        Yellow ->
-            div [ class "piece yellow" ] []
+                Yellow ->
+                    "yellow"
+    in
+    div [ class "piece", class pieceString ]
+        [ span [ class "visually-hidden" ] [ text pieceString ] ]
