@@ -1,15 +1,11 @@
 module Main exposing (main)
 
 import Browser
+import Diagonal exposing (listDiagonalTranspose)
 import Html exposing (..)
 import Html.Attributes exposing (class, disabled, href, rel)
 import Html.Events exposing (onClick)
 import List.Extra
-
-
-boardSize : { x : number, y : number }
-boardSize =
-    { x = 7, y = 6 }
 
 
 type alias Flags =
@@ -26,7 +22,11 @@ main =
         }
 
 
-{-| board is list of columns (column is list of pieces)
+
+-- TYPES --
+
+
+{-| Board is list of Columns (which is a list of Pieces)
 -}
 type alias Model =
     { board : Board
@@ -60,6 +60,15 @@ type Piece
     | Empty
 
 
+
+-- INIT --
+
+
+boardSize : { x : number, y : number }
+boardSize =
+    { x = 7, y = 6 }
+
+
 initialModel : Model
 initialModel =
     { board = List.repeat boardSize.x (List.repeat boardSize.y Empty)
@@ -70,6 +79,10 @@ initialModel =
 init : Flags -> ( Model, Cmd Msg )
 init _ =
     ( initialModel, Cmd.none )
+
+
+
+-- UPDATE --
 
 
 type Msg
@@ -92,6 +105,19 @@ update msg model =
 
         RestartedGame ->
             ( initialModel, Cmd.none )
+
+
+playerPiece : GameState -> Piece
+playerPiece state =
+    case state of
+        Player1ToPlay ->
+            Red
+
+        Player2ToPlay ->
+            Yellow
+
+        GameOver _ ->
+            Empty
 
 
 addPieceToCol : Int -> Piece -> Model -> Model
@@ -139,25 +165,35 @@ nextTurn state board =
 
 checkWin : Board -> Maybe Status
 checkWin board =
-    case List.filter (\column -> List.member Empty column) board of
-        [] ->
-            Just Draw
+    case List.filterMap checkColumn board of
+        columnWin :: _ ->
+            Just columnWin
 
         _ ->
-            case List.filterMap checkColumn board of
-                columnWin :: _ ->
-                    Just columnWin
+            case List.Extra.transpose board |> List.filterMap checkColumn of
+                rowWin :: _ ->
+                    Just rowWin
 
                 _ ->
-                    case List.Extra.transpose board |> List.filterMap checkColumn of
-                        rowWin :: _ ->
-                            Just rowWin
+                    case listDiagonalTranspose board |> List.filterMap checkColumn of
+                        diagAscenWin :: _ ->
+                            Just diagAscenWin
 
                         _ ->
-                            Nothing
+                            case List.map (\list -> List.reverse list) board |> listDiagonalTranspose |> List.filterMap checkColumn of
+                                diagDecendWin :: _ ->
+                                    Just diagDecendWin
+
+                                _ ->
+                                    case List.filter (\column -> List.member Empty column) board of
+                                        [] ->
+                                            Just Draw
+
+                                        _ ->
+                                            Nothing
 
 
-checkColumn : List Piece -> Maybe Status
+checkColumn : BoardColumn -> Maybe Status
 checkColumn column =
     if List.Extra.isInfixOf [ Red, Red, Red, Red ] column then
         Just Player1Win
@@ -169,22 +205,17 @@ checkColumn column =
         Nothing
 
 
-playerPiece : GameState -> Piece
-playerPiece state =
-    case state of
-        Player1ToPlay ->
-            Red
 
-        Player2ToPlay ->
-            Yellow
-
-        GameOver _ ->
-            Empty
+-- SUBSCRIPTIONS --
 
 
 subscriptions : Model -> Sub Msg
 subscriptions _ =
     Sub.none
+
+
+
+-- VIEW --
 
 
 view : Model -> Html Msg
@@ -194,10 +225,20 @@ view model =
         , h1 [] [ text "connect 4" ]
         , h2 [] [ viewGameStatus model.state ]
         , div [ class "columns" ] <|
-            List.indexedMap viewColumn model.board
+            List.indexedMap (viewColumn (checkGameOver model.state)) model.board
         , hr [] []
         , button [ onClick RestartedGame ] [ text "Restart Game" ]
         ]
+
+
+checkGameOver : GameState -> Bool
+checkGameOver state =
+    case state of
+        GameOver _ ->
+            True
+
+        _ ->
+            False
 
 
 viewGameStatus : GameState -> Html Msg
@@ -221,15 +262,15 @@ viewGameStatus turn =
                     text "tied game"
 
 
-viewColumn : Int -> BoardColumn -> Html Msg
-viewColumn columnIndex column =
+viewColumn : Bool -> Int -> BoardColumn -> Html Msg
+viewColumn isGameOver columnIndex column =
     let
         canPlaceMore =
             List.member Empty column
     in
     button
         [ class "column"
-        , if canPlaceMore then
+        , if not isGameOver && canPlaceMore then
             onClick <| SelectedColumn columnIndex
 
           else
