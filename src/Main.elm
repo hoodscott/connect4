@@ -6,6 +6,8 @@ import Html exposing (..)
 import Html.Attributes exposing (class, disabled, href, name, rel)
 import Html.Events exposing (onClick)
 import List.Extra
+import Random
+import Random.List
 
 
 type alias Flags =
@@ -67,7 +69,12 @@ type alias Players =
 
 type PlayerType
     = Human String
-    | AI String
+    | AI AIType String
+
+
+type AIType
+    = AIRandom
+    | AIUnimplemented
 
 
 
@@ -83,7 +90,7 @@ initialModel : Model
 initialModel =
     { board = List.repeat boardSize.x (List.repeat boardSize.y Empty)
     , state = Player1ToPlay
-    , players = ( Human "first player", Human "second player" )
+    , players = ( Human "scott", AI AIRandom "ai player" )
     }
 
 
@@ -98,6 +105,8 @@ init _ =
 
 type Msg
     = SelectedColumn Int
+    | StartedAIMove
+    | GeneratedAIMove (Maybe Int)
     | RestartedGame
 
 
@@ -113,6 +122,17 @@ update msg model =
                     ( addPieceToCol columnSelected (playerPiece model.state) model
                     , Cmd.none
                     )
+
+        StartedAIMove ->
+            ( model, aiSelectMove (currentPlayer model.state model.players) model.board )
+
+        GeneratedAIMove maybeMove ->
+            case maybeMove of
+                Just move ->
+                    update (SelectedColumn move) model
+
+                _ ->
+                    ( model, Cmd.none )
 
         RestartedGame ->
             ( initialModel, Cmd.none )
@@ -216,6 +236,49 @@ checkColumn column =
         Nothing
 
 
+currentPlayer : GameState -> Players -> PlayerType
+currentPlayer state players =
+    case state of
+        Player1ToPlay ->
+            Tuple.first players
+
+        Player2ToPlay ->
+            Tuple.second players
+
+        GameOver _ ->
+            Tuple.first players
+
+
+aiSelectMove : PlayerType -> Board -> Cmd Msg
+aiSelectMove player board =
+    case player of
+        AI AIRandom _ ->
+            let
+                possibleMoves =
+                    List.indexedMap
+                        (\index column ->
+                            if List.member Empty column then
+                                index
+
+                            else
+                                -1
+                        )
+                        board
+                        |> List.filter (\index -> index >= 0)
+
+                gen : Random.Generator (Maybe Int)
+                gen =
+                    Random.List.choose possibleMoves |> Random.map (\tuple -> Tuple.first tuple)
+            in
+            Random.generate GeneratedAIMove gen
+
+        AI AIUnimplemented _ ->
+            Debug.todo "add another variety of AI"
+
+        Human _ ->
+            Cmd.none
+
+
 
 -- SUBSCRIPTIONS --
 
@@ -234,12 +297,34 @@ view model =
     main_ []
         [ node "link" [ rel "stylesheet", href "style.css" ] []
         , h1 [] [ text "connect 4" ]
-        , h2 [] [ viewGameStatus model.players model.state ]
         , div [ class "columns" ] <|
-            List.indexedMap (viewColumn model.players (checkGameOver model.state)) model.board
+            List.indexedMap (viewColumn model.players (checkIsHumanTurn model.players model.state) (checkGameOver model.state)) model.board
+        , h2 [] [ viewGameStatus model.players model.state ]
         , hr [] []
         , button [ onClick RestartedGame ] [ text "Restart Game" ]
         ]
+
+
+checkIsHumanTurn : Players -> GameState -> Bool
+checkIsHumanTurn players state =
+    let
+        tuple =
+            case state of
+                Player1ToPlay ->
+                    Tuple.first
+
+                Player2ToPlay ->
+                    Tuple.second
+
+                _ ->
+                    Tuple.first
+    in
+    case tuple players of
+        Human _ ->
+            True
+
+        AI _ _ ->
+            False
 
 
 checkGameOver : GameState -> Bool
@@ -254,12 +339,24 @@ checkGameOver state =
 
 viewGameStatus : Players -> GameState -> Html Msg
 viewGameStatus players turn =
+    let
+        addAIButton player =
+            case player of
+                AI _ _ ->
+                    [ button [ onClick StartedAIMove ] [ text "Make AI Move" ] ]
+
+                _ ->
+                    []
+
+        playerStatus player =
+            span [] <| (text <| (getName <| player) ++ "'s turn") :: addAIButton player
+    in
     case turn of
         Player1ToPlay ->
-            text <| (getName <| Tuple.first players) ++ "'s turn"
+            playerStatus (Tuple.first players)
 
         Player2ToPlay ->
-            text <| (getName <| Tuple.second players) ++ "'s turn"
+            playerStatus (Tuple.second players)
 
         GameOver status ->
             case status of
@@ -279,19 +376,19 @@ getName playerType =
         Human name ->
             name
 
-        AI name ->
+        AI _ name ->
             name
 
 
-viewColumn : Players -> Bool -> Int -> BoardColumn -> Html Msg
-viewColumn players isGameOver columnIndex column =
+viewColumn : Players -> Bool -> Bool -> Int -> BoardColumn -> Html Msg
+viewColumn players isHumanTurn isGameOver columnIndex column =
     let
         canPlaceMore =
             List.member Empty column
     in
     button
         [ class "column"
-        , if not isGameOver && canPlaceMore then
+        , if not isGameOver && isHumanTurn && canPlaceMore then
             onClick <| SelectedColumn columnIndex
 
           else
