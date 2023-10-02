@@ -13,7 +13,7 @@ getMoveWithMinimax makeMove scoreMove maxDepth root =
                 childrenScores
 
         childrenScores =
-            List.map (minimax True maxDepth) (makeMove root)
+            List.map (minimax False maxDepth) (makeMove root)
 
         minimax : Bool -> Int -> n -> number
         minimax isMax depth node =
@@ -22,7 +22,13 @@ getMoveWithMinimax makeMove scoreMove maxDepth root =
                     makeMove node
             in
             if depth == 0 || List.isEmpty children then
-                scoreMove node
+                (if isMax then
+                    -1
+
+                 else
+                    1
+                )
+                    * scoreMove node
 
             else
                 Maybe.withDefault 0 <|
@@ -51,9 +57,11 @@ getMoveWithMinimax makeMove scoreMove maxDepth root =
     maxScore.index
 
 
+intMin : number
 intMin =
     -2 ^ 31
 
 
+intMax : number
 intMax =
     2 ^ 31 - 1
