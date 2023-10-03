@@ -4,7 +4,7 @@ import AI
 import Browser
 import Diagonal exposing (listDiagonalTranspose)
 import Html exposing (..)
-import Html.Attributes exposing (autocomplete, class, disabled, for, href, id, name, rel, required, type_, value)
+import Html.Attributes exposing (autocomplete, class, disabled, for, href, id, name, rel, required, selected, type_, value)
 import Html.Events exposing (onClick, onInput, onSubmit)
 import List.Extra
 import Random
@@ -110,8 +110,8 @@ initialModel =
         { board = createBoard
         , state = initialState
         }
-    , players = Just ( Human "scott", AI AIMinimax "minimax" )
-    , formFields = { player1Name = "", player2Name = "", player1Type = "0", player2Type = "0" }
+    , players = Nothing
+    , formFields = { player1Name = "Randy", player2Name = "Minnie", player1Type = "1", player2Type = "2" }
     }
 
 
@@ -290,22 +290,22 @@ nextTurn state board =
 
 checkWin : Board -> Status
 checkWin board =
-    case List.filterMap checkColumn board of
+    case List.filterMap checkColumnWin board of
         columnWin :: _ ->
             columnWin
 
         _ ->
-            case List.Extra.transpose board |> List.filterMap checkColumn of
+            case List.Extra.transpose board |> List.filterMap checkColumnWin of
                 rowWin :: _ ->
                     rowWin
 
                 _ ->
-                    case listDiagonalTranspose board |> List.filterMap checkColumn of
+                    case listDiagonalTranspose board |> List.filterMap checkColumnWin of
                         diagAscenWin :: _ ->
                             diagAscenWin
 
                         _ ->
-                            case List.map (\list -> List.reverse list) board |> listDiagonalTranspose |> List.filterMap checkColumn of
+                            case List.map (\list -> List.reverse list) board |> listDiagonalTranspose |> List.filterMap checkColumnWin of
                                 diagDecendWin :: _ ->
                                     diagDecendWin
 
@@ -318,8 +318,8 @@ checkWin board =
                                             Undecided
 
 
-checkColumn : BoardColumn -> Maybe Status
-checkColumn column =
+checkColumnWin : BoardColumn -> Maybe Status
+checkColumnWin column =
     if List.Extra.isInfixOf [ Player1Piece, Player1Piece, Player1Piece, Player1Piece ] column then
         Just Player1Win
 
@@ -356,7 +356,7 @@ aiSelectMove player game =
             Random.generate GeneratedAIMove gen
 
         AI AIMinimax _ ->
-            send <| SelectedAIMove (AI.getMoveWithMinimax getNextMoves scoreMove 4 game)
+            send <| SelectedAIMove (AI.getMoveWithMinimax getNextMoves scoreMove 2 game)
 
         Human _ ->
             Cmd.none
@@ -366,16 +366,15 @@ scoreMove : Game -> number
 scoreMove game =
     case game.state.status of
         Player1Win ->
-            100
+            100000
 
         Player2Win ->
-            100
+            100000
 
         Draw ->
             0
 
         Undecided ->
-            -- todo - add more heuristics here (run of 3?)
             0
 
 
@@ -510,7 +509,9 @@ view model =
                                             List.indexedMap
                                                 (\index choice ->
                                                     option
-                                                        [ value <| String.fromInt index ]
+                                                        [ value <| String.fromInt index
+                                                        , selected (String.fromInt index == playerType)
+                                                        ]
                                                         [ text choice ]
                                                 )
                                                 options
