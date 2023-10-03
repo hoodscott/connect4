@@ -1,6 +1,9 @@
 html {
   text-align: center;
   font-size: 1.5rem;
+  background-color: #111D4A;
+  color: #246EB9;
+  font-family: cursive, sans-serif;
 }
 
 * {
@@ -21,25 +24,15 @@ select {
 }
 
 .piece.empty {
-  border: 2px solid grey;
+  border: 2px solid #246EB9;
 }
 
 .piece.p1 {
-  background-color: red;
-  /* background: repeating-linear-gradient(45deg,
-      red,
-      red 4px,
-      firebrick 4px,
-      firebrick 8px); */
+  background-color: #92140C;
 }
 
 .piece.p2 {
-  background-color: yellow;
-  /* background: repeating-linear-gradient(-45deg,
-      yellow,
-      yellow 4px,
-      gold 4px,
-      gold 8px); */
+  background-color: #EDD83D;
 }
 
 .columns {
@@ -64,6 +57,10 @@ select {
 .columns,
 .column {
   gap: 0.25rem;
+}
+
+h1 {
+  text-transform: uppercase;
 }
 
 button {

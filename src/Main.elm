@@ -456,7 +456,7 @@ view : Model -> Html Msg
 view model =
     main_ [] <|
         [ node "link" [ rel "stylesheet", href "style.css" ] []
-        , h1 [] [ text "connect 4" ]
+        , h1 [] [ text "Connect 4" ]
         ]
             ++ (case model.players of
                     Just players ->
