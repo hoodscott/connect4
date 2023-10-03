@@ -7,7 +7,6 @@ import Html exposing (..)
 import Html.Attributes exposing (autocomplete, class, disabled, for, href, id, name, rel, required, type_, value)
 import Html.Events exposing (onClick, onInput, onSubmit)
 import List.Extra
-import Platform exposing (Task)
 import Random
 import Random.List
 import Task
@@ -58,16 +57,20 @@ type Piece
     | Empty
 
 
-type State
+type alias State =
+    { turn : ToPlay, status : Status }
+
+
+type ToPlay
     = Player1ToPlay
     | Player2ToPlay
-    | GameOver Status
 
 
 type Status
     = Player1Win
     | Player2Win
     | Draw
+    | Undecided
 
 
 type alias Players =
@@ -105,7 +108,7 @@ initialModel : Model
 initialModel =
     { game =
         { board = createBoard
-        , state = Player1ToPlay
+        , state = initialState
         }
     , players = Just ( Human "scott", AI AIMinimax "minimax" )
     , formFields = { player1Name = "", player2Name = "", player1Type = "0", player2Type = "0" }
@@ -115,6 +118,11 @@ initialModel =
 createBoard : List (List Piece)
 createBoard =
     List.repeat boardSize.x (List.repeat boardSize.y Empty)
+
+
+initialState : { turn : ToPlay, status : Status }
+initialState =
+    { turn = Player1ToPlay, status = Undecided }
 
 
 init : Flags -> ( Model, Cmd Msg )
@@ -146,21 +154,21 @@ update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         SelectedColumn columnSelected ->
-            case model.game.state of
-                GameOver _ ->
-                    ( model, Cmd.none )
-
-                _ ->
+            case model.game.state.status of
+                Undecided ->
                     ( { model | game = addPieceToCol model.game columnSelected }
                     , Cmd.none
                     )
+
+                _ ->
+                    ( model, Cmd.none )
 
         StartedAIMove ->
             case model.players of
                 Just players ->
                     ( model
                     , aiSelectMove
-                        (currentPlayer model.game.state players)
+                        (currentPlayer model.game.state.turn players)
                         model.game
                     )
 
@@ -184,7 +192,7 @@ update msg model =
                     ( model, Cmd.none )
 
         RestartedGame ->
-            ( { model | game = { board = createBoard, state = Player1ToPlay } }, Cmd.none )
+            ( { model | game = { board = createBoard, state = initialState } }, Cmd.none )
 
         ClearedPlayers ->
             ( { model | players = Nothing }, Cmd.none )
@@ -198,7 +206,7 @@ update msg model =
                     | players = createNewPlayers model.formFields
                     , game =
                         { board = createBoard
-                        , state = Player1ToPlay
+                        , state = initialState
                         }
                   }
                 , Cmd.none
@@ -237,15 +245,12 @@ addPieceToCol : Game -> Int -> Game
 addPieceToCol game columnSelected =
     let
         piece =
-            case game.state of
+            case game.state.turn of
                 Player1ToPlay ->
                     Player1Piece
 
                 Player2ToPlay ->
                     Player2Piece
-
-                GameOver _ ->
-                    Empty
     in
     case List.Extra.getAt columnSelected game.board of
         Just newCol ->
@@ -271,50 +276,46 @@ addPieceToCol game columnSelected =
 
 nextTurn : State -> Board -> State
 nextTurn state board =
-    case checkWin board of
-        Just status ->
-            GameOver status
+    let
+        newStatus =
+            checkWin board
+    in
+    case state.turn of
+        Player1ToPlay ->
+            { state | turn = Player2ToPlay, status = newStatus }
 
-        Nothing ->
-            case state of
-                Player1ToPlay ->
-                    Player2ToPlay
-
-                Player2ToPlay ->
-                    Player1ToPlay
-
-                GameOver _ ->
-                    state
+        Player2ToPlay ->
+            { state | turn = Player1ToPlay, status = newStatus }
 
 
-checkWin : Board -> Maybe Status
+checkWin : Board -> Status
 checkWin board =
     case List.filterMap checkColumn board of
         columnWin :: _ ->
-            Just columnWin
+            columnWin
 
         _ ->
             case List.Extra.transpose board |> List.filterMap checkColumn of
                 rowWin :: _ ->
-                    Just rowWin
+                    rowWin
 
                 _ ->
                     case listDiagonalTranspose board |> List.filterMap checkColumn of
                         diagAscenWin :: _ ->
-                            Just diagAscenWin
+                            diagAscenWin
 
                         _ ->
                             case List.map (\list -> List.reverse list) board |> listDiagonalTranspose |> List.filterMap checkColumn of
                                 diagDecendWin :: _ ->
-                                    Just diagDecendWin
+                                    diagDecendWin
 
                                 _ ->
                                     case List.filter (\column -> List.member Empty column) board of
                                         [] ->
-                                            Just Draw
+                                            Draw
 
                                         _ ->
-                                            Nothing
+                                            Undecided
 
 
 checkColumn : BoardColumn -> Maybe Status
@@ -329,17 +330,14 @@ checkColumn column =
         Nothing
 
 
-currentPlayer : State -> Players -> PlayerType
-currentPlayer state players =
-    case state of
+currentPlayer : ToPlay -> Players -> PlayerType
+currentPlayer toPlay players =
+    case toPlay of
         Player1ToPlay ->
             Tuple.first players
 
         Player2ToPlay ->
             Tuple.second players
-
-        GameOver _ ->
-            Tuple.first players
 
 
 aiSelectMove : PlayerType -> Game -> Cmd Msg
@@ -358,7 +356,7 @@ aiSelectMove player game =
             Random.generate GeneratedAIMove gen
 
         AI AIMinimax _ ->
-            send <| SelectedAIMove (AI.getMoveWithMinimax getNextMoves scoreMove 1 game |> Debug.log "minimaxchose")
+            send <| SelectedAIMove (AI.getMoveWithMinimax getNextMoves scoreMove 4 game)
 
         Human _ ->
             Cmd.none
@@ -366,37 +364,29 @@ aiSelectMove player game =
 
 scoreMove : Game -> number
 scoreMove game =
-    case game.state of
-        GameOver status ->
-            case status of
-                Draw ->
-                    0
+    case game.state.status of
+        Player1Win ->
+            100
 
-                Player1Win ->
-                    20
+        Player2Win ->
+            100
 
-                Player2Win ->
-                    -20
-
-        Player1ToPlay ->
+        Draw ->
             0
 
-        Player2ToPlay ->
+        Undecided ->
+            -- todo - add more heuristics here (run of 3?)
             0
 
 
 getNextMoves : Game -> List Game
 getNextMoves game =
-    case game.state of
-        GameOver _ ->
-            []
+    case game.state.status of
+        Undecided ->
+            List.map (addPieceToCol game) (possibleMoves game)
 
         _ ->
-            let
-                poss =
-                    Debug.log "possuible" (possibleMoves game)
-            in
-            List.map (addPieceToCol game) poss
+            []
 
 
 possibleMoves : Game -> List Int
@@ -550,15 +540,12 @@ checkIsHumanTurn : Players -> State -> Bool
 checkIsHumanTurn players state =
     let
         tuple =
-            case state of
+            case state.turn of
                 Player1ToPlay ->
                     Tuple.first
 
                 Player2ToPlay ->
                     Tuple.second
-
-                _ ->
-                    Tuple.first
     in
     case tuple players of
         Human _ ->
@@ -570,16 +557,16 @@ checkIsHumanTurn players state =
 
 checkGameOver : State -> Bool
 checkGameOver state =
-    case state of
-        GameOver _ ->
-            True
+    case state.status of
+        Undecided ->
+            False
 
         _ ->
-            False
+            True
 
 
 viewGameStatus : Players -> State -> Html Msg
-viewGameStatus players turn =
+viewGameStatus players state =
     let
         addAIButton player =
             case player of
@@ -592,23 +579,23 @@ viewGameStatus players turn =
         playerStatus player =
             span [] <| (text <| (getName <| player) ++ "'s turn") :: addAIButton player
     in
-    case turn of
-        Player1ToPlay ->
-            playerStatus (Tuple.first players)
+    case state.status of
+        Undecided ->
+            case state.turn of
+                Player1ToPlay ->
+                    playerStatus (Tuple.first players)
 
-        Player2ToPlay ->
-            playerStatus (Tuple.second players)
+                Player2ToPlay ->
+                    playerStatus (Tuple.second players)
 
-        GameOver status ->
-            case status of
-                Player1Win ->
-                    text <| (getName <| Tuple.first players) ++ " wins!"
+        Player1Win ->
+            text <| (getName <| Tuple.first players) ++ " wins!"
 
-                Player2Win ->
-                    text <| (getName <| Tuple.second players) ++ " wins!"
+        Player2Win ->
+            text <| (getName <| Tuple.second players) ++ " wins!"
 
-                Draw ->
-                    text "tied game"
+        Draw ->
+            text "tied game"
 
 
 getName : PlayerType -> String
