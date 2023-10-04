@@ -3,6 +3,14 @@ module Diagonal exposing (listDiagonalTranspose)
 import List.Extra
 
 
+{-| Turns
+
+```
+[[a, [b,  to  [[a] [c, [d]]
+  c]  d]]           b]
+```
+
+-}
 listDiagonalTranspose : List (List a) -> List (List a)
 listDiagonalTranspose listOfLists =
     let
