@@ -4,7 +4,7 @@ import AI
 import Browser
 import Diagonal exposing (listDiagonalTranspose)
 import Html exposing (..)
-import Html.Attributes exposing (autocomplete, class, disabled, for, href, id, name, rel, required, selected, type_, value)
+import Html.Attributes exposing (autocomplete, class, classList, disabled, for, href, id, name, placeholder, rel, required, selected, type_, value)
 import Html.Events exposing (onClick, onInput, onSubmit)
 import List.Extra
 import Random
@@ -449,81 +449,99 @@ view model =
         ]
             ++ (case model.players of
                     Just players ->
-                        [ div [ class "columns" ] <|
-                            List.indexedMap
-                                (viewColumn players
-                                    (checkIsHumanTurn players model.game.state)
-                                    (checkGameOver model.game.state)
-                                )
-                                model.game.board
-                        , h2 [] [ viewGameStatus players model.game.state ]
-                        , hr [] []
-                        , button [ onClick RestartedGame ] [ text "Restart Game" ]
-                        , button [ onClick ClearedPlayers ] [ text "Back to player select" ]
-                        ]
+                        viewGame players model
 
                     Nothing ->
-                        let
-                            options =
-                                [ "Human", "Random AI", "Minimax AI" ]
-
-                            viewPlayerSelect playerLabel playerName playerNameEvent playerType playerTypeEvent =
-                                fieldset []
-                                    [ legend [] [ text playerLabel ]
-                                    , div []
-                                        [ label
-                                            [ for <| playerLabel ++ "name" ]
-                                            [ text "Name:" ]
-                                        , input
-                                            [ required True
-                                            , onInput playerNameEvent
-                                            , value playerName
-                                            , autocomplete False
-                                            , id <| playerLabel ++ "name"
-                                            ]
-                                            []
-                                        ]
-                                    , div []
-                                        [ label
-                                            [ for <| playerLabel ++ "control" ]
-                                            [ text "Controller:" ]
-                                        , select
-                                            [ required True
-                                            , onInput playerTypeEvent
-                                            , value playerType
-                                            , autocomplete False
-                                            , id <| playerLabel ++ "control"
-                                            ]
-                                          <|
-                                            List.indexedMap
-                                                (\index choice ->
-                                                    option
-                                                        [ value <| String.fromInt index
-                                                        , selected (String.fromInt index == playerType)
-                                                        ]
-                                                        [ text choice ]
-                                                )
-                                                options
-                                        ]
-                                    ]
-                        in
-                        [ form [ onSubmit SubmittedPlayerSelectForm ]
-                            [ viewPlayerSelect
-                                "Player 1"
-                                model.formFields.player1Name
-                                ChangedPlayer1Name
-                                model.formFields.player1Type
-                                ChangedPlayer1Select
-                            , viewPlayerSelect
-                                "Player 2"
-                                model.formFields.player2Name
-                                ChangedPlayer2Name
-                                model.formFields.player2Type
-                                ChangedPlayer2Select
-                            , button [ type_ "submit" ] [ text "Start Game" ]
-                            ]
-                        ]
+                        viewSetupForm model
                )
+
+
+viewSetupForm : Model -> List (Html Msg)
+viewSetupForm model =
+    let
+        options =
+            [ "Human", "Random AI", "Minimax AI" ]
+
+        viewPlayerSelect legendClass placeholderText playerLabel playerName playerNameEvent playerType playerTypeEvent =
+            fieldset []
+                [ legend [ class legendClass ] [ text playerLabel ]
+                , div []
+                    [ label
+                        [ for <| playerLabel ++ "name" ]
+                        [ text "Name:" ]
+                    , input
+                        [ required True
+                        , onInput playerNameEvent
+                        , value playerName
+                        , autocomplete False
+                        , placeholder placeholderText
+                        , id <| playerLabel ++ "name"
+                        ]
+                        []
+                    ]
+                , div []
+                    [ label
+                        [ for <| playerLabel ++ "control" ]
+                        [ text "Controller:" ]
+                    , select
+                        [ required True
+                        , onInput playerTypeEvent
+                        , value playerType
+                        , autocomplete False
+                        , id <| playerLabel ++ "control"
+                        ]
+                      <|
+                        List.indexedMap
+                            (\index choice ->
+                                option
+                                    [ value <| String.fromInt index
+                                    , selected (String.fromInt index == playerType)
+                                    ]
+                                    [ text choice ]
+                            )
+                            options
+                    ]
+                ]
+    in
+    [ form [ onSubmit SubmittedPlayerSelectForm ]
+        [ div [ class "players" ] <|
+            [ viewPlayerSelect
+                "p1"
+                "Mickey"
+                "Player 1"
+                model.formFields.player1Name
+                ChangedPlayer1Name
+                model.formFields.player1Type
+                ChangedPlayer1Select
+            , viewPlayerSelect
+                "p2"
+                "Donald"
+                "Player 2"
+                model.formFields.player2Name
+                ChangedPlayer2Name
+                model.formFields.player2Type
+                ChangedPlayer2Select
+            ]
+        , div [] [ button [ type_ "submit", class "button" ] [ text "Start Game" ] ]
+        ]
+    ]
+
+
+viewGame : Players -> Model -> List (Html Msg)
+viewGame players model =
+    [ div [ class "columns" ] <|
+        List.indexedMap
+            (viewColumn players
+                (checkIsHumanTurn players model.game.state)
+                (checkGameOver model.game.state)
+            )
+            model.game.board
+    , div [ class "status" ] <| viewGameStatus players model.game.state
+    , div [ class "controls" ]
+        [ button [ onClick RestartedGame, class "button" ] [ text "Restart Game" ]
+        , button [ onClick ClearedPlayers, class "button" ] [ text "Back to Player Select" ]
+        ]
+    ]
 
 
 checkIsHumanTurn : Players -> State -> Bool
@@ -555,37 +573,47 @@ checkGameOver state =
             True
 
 
-viewGameStatus : Players -> State -> Html Msg
+viewGameStatus : Players -> State -> List (Html Msg)
 viewGameStatus players state =
     let
+        heading : List (Html msg) -> Html msg
+        heading headingText =
+            h2 [] <| headingText
+
+        winner : Bool -> (Players -> PlayerType) -> List (Html msg)
+        winner isFirstPlayer firstOrSecond =
+            [ heading <| [ getNameSpan isFirstPlayer <| firstOrSecond players, text " wins!" ] ]
+
+        playerStatus : Bool -> (Players -> PlayerType) -> List (Html Msg)
+        playerStatus isFirstPlayer firstOrSecond =
+            (heading <| [ getNameSpan isFirstPlayer <| firstOrSecond players, text "'s turn" ])
+                :: addAIButton (firstOrSecond players)
+
         addAIButton player =
             case player of
                 AI _ _ ->
-                    [ button [ onClick StartedAIMove ] [ text "Make AI Move" ] ]
+                    [ button [ onClick StartedAIMove, class "button" ] [ text "Make AI Move" ] ]
 
                 _ ->
-                    []
-
-        playerStatus player =
-            span [] <| (text <| (getName <| player) ++ "'s turn") :: addAIButton player
+                    [ div [] [ text "Select a column above to place a piece" ] ]
     in
     case state.status of
         Undecided ->
             case state.turn of
                 Player1ToPlay ->
-                    playerStatus (Tuple.first players)
+                    playerStatus True Tuple.first
 
                 Player2ToPlay ->
-                    playerStatus (Tuple.second players)
+                    playerStatus False Tuple.second
 
         Player1Win ->
-            text <| (getName <| Tuple.first players) ++ " wins!"
+            winner True Tuple.first
 
         Player2Win ->
-            text <| (getName <| Tuple.second players) ++ " wins!"
+            winner False Tuple.second
 
         Draw ->
-            text "tied game"
+            [ heading [ text "Tied game" ] ]
 
 
 getName : PlayerType -> String
@@ -596,6 +624,15 @@ getName playerType =
 
         AI _ name ->
             name
+
+
+getNameSpan : Bool -> PlayerType -> Html msg
+getNameSpan isFirstPlayer playerType =
+    let
+        name =
+            getName playerType
+    in
+    span [ classList [ ( "p1", isFirstPlayer ), ( "p2", not isFirstPlayer ) ] ] [ text name ]
 
 
 viewColumn : Players -> Bool -> Bool -> Int -> BoardColumn -> Html Msg
