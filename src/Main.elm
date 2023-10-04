@@ -345,7 +345,11 @@ aiSelectMove player game =
             pickMove <| possibleMoves game
 
         AI AIMinimax _ ->
-            pickMove <| AI.getMovesWithMinimax getNextMoves scoreMove 2 game
+            let
+                mm =
+                    AI.getMovesWithMinimax getNextMoves scoreMove 2 game
+            in
+            pickMove <| List.Extra.removeIfIndex (\index -> not (List.member index mm)) (possibleMoves game)
 
         Human _ ->
             Cmd.none
