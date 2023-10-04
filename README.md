@@ -28,3 +28,5 @@ Requires global install of Elm.  Then run following commands to setup elm-live s
 npm i
 npm run live
 ```
+
+To build the app run either `.\build.cmd` or `./build.sh` depending on OS.
