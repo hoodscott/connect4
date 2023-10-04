@@ -424,7 +424,6 @@ aiSelectMove player game =
                 movesSortedBySpace =
                     List.map (countEmptiesInCol game.board) (possibleMoves game)
                         |> List.sortBy Tuple.second
-                        |> Debug.log "sorted"
 
                 countNumMin move acc =
                     if Tuple.second move < Tuple.first acc then
@@ -441,7 +440,6 @@ aiSelectMove player game =
                         countNumMin
                         ( 7, 0 )
                         movesSortedBySpace
-                        |> Debug.log "stack"
                         |> Tuple.second
 
                 stack =

@@ -137,6 +137,7 @@ fieldset {
   padding: 0;
   max-width: 20ch;
   text-align: left;
+  border-color: #246EB9;
 }
 
 fieldset>legend {
