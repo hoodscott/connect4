@@ -84,6 +84,9 @@ type PlayerType
 type AIType
     = AIRandom
     | AIMinimax
+    | AIMiddle
+    | AISpread
+    | AIStack
 
 
 type alias FormFields =
@@ -351,6 +354,101 @@ aiSelectMove player game =
             in
             pickMove <| List.Extra.removeIfIndex (\index -> not (List.member index mm)) (possibleMoves game)
 
+        AI AIMiddle _ ->
+            let
+                possible =
+                    possibleMoves game
+
+                length =
+                    List.length possible
+
+                middleMove : List Int
+                middleMove =
+                    if modBy 2 length == 0 then
+                        List.drop ((length // 2) - 1) possible
+                            |> List.take 2
+
+                    else
+                        List.drop (length // 2) possible
+                            |> List.take 1
+            in
+            pickMove middleMove
+
+        AI AISpread _ ->
+            let
+                countEmptiesInCol board column =
+                    ( column
+                    , List.Extra.getAt column board
+                        |> Maybe.withDefault []
+                        |> List.filter (\piece -> piece == Empty)
+                        |> List.length
+                    )
+
+                movesSortedBySpace =
+                    List.map (countEmptiesInCol game.board) (possibleMoves game)
+                        |> List.sortBy Tuple.second
+                        |> List.reverse
+
+                countNumMax move acc =
+                    if Tuple.second move > Tuple.first acc then
+                        ( Tuple.second move, 1 )
+
+                    else if Tuple.second move == Tuple.first acc then
+                        ( Tuple.first acc, 1 + Tuple.second acc )
+
+                    else
+                        acc
+
+                maxCount =
+                    List.foldl
+                        countNumMax
+                        ( -1, 0 )
+                        movesSortedBySpace
+                        |> Tuple.second
+
+                spread =
+                    List.take maxCount movesSortedBySpace |> List.map Tuple.first
+            in
+            pickMove spread
+
+        AI AIStack _ ->
+            let
+                countEmptiesInCol board column =
+                    ( column
+                    , List.Extra.getAt column board
+                        |> Maybe.withDefault []
+                        |> List.filter (\piece -> piece == Empty)
+                        |> List.length
+                    )
+
+                movesSortedBySpace =
+                    List.map (countEmptiesInCol game.board) (possibleMoves game)
+                        |> List.sortBy Tuple.second
+                        |> Debug.log "sorted"
+
+                countNumMin move acc =
+                    if Tuple.second move < Tuple.first acc then
+                        ( Tuple.second move, 1 )
+
+                    else if Tuple.second move == Tuple.first acc then
+                        ( Tuple.first acc, 1 + Tuple.second acc )
+
+                    else
+                        acc
+
+                minCount =
+                    List.foldl
+                        countNumMin
+                        ( 7, 0 )
+                        movesSortedBySpace
+                        |> Debug.log "stack"
+                        |> Tuple.second
+
+                stack =
+                    List.take minCount movesSortedBySpace |> List.map Tuple.first
+            in
+            pickMove stack
+
         Human _ ->
             Cmd.none
 
@@ -421,6 +519,15 @@ createNewPlayers formFields =
                 "2" ->
                     Just (AI AIMinimax <| nameField formFields)
 
+                "3" ->
+                    Just (AI AIMiddle <| nameField formFields)
+
+                "4" ->
+                    Just (AI AISpread <| nameField formFields)
+
+                "5" ->
+                    Just (AI AIStack <| nameField formFields)
+
                 _ ->
                     Nothing
     in
@@ -464,7 +571,7 @@ viewSetupForm : Model -> List (Html Msg)
 viewSetupForm model =
     let
         options =
-            [ "Human", "Random AI", "Minimax AI" ]
+            [ "Human", "Random AI", "Minimax AI", "Central AI", "Spread AI", "Stack AI" ]
 
         viewPlayerSelect legendClass placeholderText playerLabel playerName playerNameEvent playerType playerTypeEvent =
             fieldset []
