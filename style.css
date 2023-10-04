@@ -1,9 +1,9 @@
 html {
-  text-align: center;
+  font-family: cursive, sans-serif;
   font-size: 1.5rem;
+  text-align: center;
   background-color: #111D4A;
   color: #246EB9;
-  font-family: cursive, sans-serif;
 }
 
 * {

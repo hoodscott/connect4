@@ -1,15 +1,23 @@
-module AI exposing (getMoveWithMinimax)
+module AI exposing (getMovesWithMinimax, intMax, intMin)
 
 import List.Extra
 
 
-getMoveWithMinimax : (n -> List n) -> (n -> number) -> Int -> n -> Maybe Int
-getMoveWithMinimax makeMove scoreMove maxDepth root =
+{-| Returns a list of indexes of the best possible next move.
+
+`makeMove` takes a game state and returns a list of the next possible game states;
+`scoreMove` takes a game state and scores how well the current player is doing;
+`maxDepth` determines how many game states in future we will check;
+`root` is the current game state.
+
+-}
+getMovesWithMinimax : (n -> List n) -> (n -> number) -> Int -> n -> List Int
+getMovesWithMinimax makeMove scoreMove maxDepth root =
     let
         maxScore =
             List.Extra.indexedFoldl
-                findMaxIndex
-                { max = intMin, index = Nothing }
+                findMaxIndexes
+                { max = intMin, indexes = [] }
                 childrenScores
 
         childrenScores =
@@ -47,14 +55,17 @@ getMoveWithMinimax makeMove scoreMove maxDepth root =
                         )
                             :: List.map (minimax (not isMax) (depth - 1)) children
 
-        findMaxIndex index score accum =
+        findMaxIndexes index score accum =
             if score > accum.max then
-                { accum | max = score, index = Just index }
+                { accum | max = score, indexes = [ index ] }
+
+            else if score == accum.max then
+                { accum | max = score, indexes = index :: accum.indexes }
 
             else
                 accum
     in
-    maxScore.index
+    maxScore.indexes
 
 
 intMin : number

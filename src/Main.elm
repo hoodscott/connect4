@@ -9,7 +9,6 @@ import Html.Events exposing (onClick, onInput, onSubmit)
 import List.Extra
 import Random
 import Random.List
-import Task
 
 
 type alias Flags =
@@ -139,7 +138,6 @@ type Msg
       SelectedColumn Int
     | StartedAIMove
     | GeneratedAIMove (Maybe Int)
-    | SelectedAIMove (Maybe Int)
     | RestartedGame
     | ClearedPlayers
       -- setup form stuff
@@ -179,14 +177,6 @@ update msg model =
             case maybeMove of
                 Just move ->
                     update (SelectedColumn move) model
-
-                _ ->
-                    ( model, Cmd.none )
-
-        SelectedAIMove maybeMove ->
-            case maybeMove of
-                Just move ->
-                    update (SelectedColumn (Maybe.withDefault 0 (List.Extra.getAt move <| possibleMoves model.game))) model
 
                 _ ->
                     ( model, Cmd.none )
@@ -343,20 +333,19 @@ currentPlayer toPlay players =
 aiSelectMove : PlayerType -> Game -> Cmd Msg
 aiSelectMove player game =
     let
-        send msg =
-            Task.succeed msg |> Task.perform identity
+        pickMove : List Int -> Cmd Msg
+        pickMove listOfMoves =
+            Random.generate GeneratedAIMove
+                (Random.List.choose listOfMoves
+                    |> Random.map (\tuple -> Tuple.first tuple)
+                )
     in
     case player of
         AI AIRandom _ ->
-            let
-                gen : Random.Generator (Maybe Int)
-                gen =
-                    Random.List.choose (possibleMoves game) |> Random.map (\tuple -> Tuple.first tuple)
-            in
-            Random.generate GeneratedAIMove gen
+            pickMove <| possibleMoves game
 
         AI AIMinimax _ ->
-            send <| SelectedAIMove (AI.getMoveWithMinimax getNextMoves scoreMove 2 game)
+            pickMove <| AI.getMovesWithMinimax getNextMoves scoreMove 2 game
 
         Human _ ->
             Cmd.none
@@ -366,10 +355,10 @@ scoreMove : Game -> number
 scoreMove game =
     case game.state.status of
         Player1Win ->
-            100000
+            AI.intMax
 
         Player2Win ->
-            100000
+            AI.intMax
 
         Draw ->
             0
