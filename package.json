@@ -4,8 +4,9 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "live": "elm-live src/Main.elm -- --debug"
+    "test": "elm-test",
+    "live": "elm-live src/Main.elm",
+    "live-d": "elm-live src/Main.elm -- --debug"
   },
   "author": "",
   "license": "ISC",
