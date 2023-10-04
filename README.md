@@ -1,9 +1,9 @@
 # Connect 4 made with Elm
 
 <div align="middle">
-  <img src="/img/setup.png" alt="screenshot of connect 4 game setup" width="300" />
-  <img src="/img/game.png" alt="screenshot of connect 4 game in progress" width="300" />
-  <img src="/img/win.png" alt="screenshot of connect 4 game win screen" width="300" />
+  <img src="/img/setup.png" alt="screenshot of connect 4 game setup" width="270" />
+  <img src="/img/game.png" alt="screenshot of connect 4 game in progress" width="270" />
+  <img src="/img/win.png" alt="screenshot of connect 4 game win screen" width="270" />
 </div>
 
 ## Can play:
