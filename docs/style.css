@@ -1,0 +1,180 @@
+* {
+  box-sizing: border-box;
+}
+
+html {
+  font-family: cursive, sans-serif;
+  font-size: 1.5rem;
+  text-align: center;
+  background-color: #111D4A;
+  color: #246EB9;
+}
+
+input,
+button,
+textarea,
+select {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
+main {
+  max-width: 80ch;
+  margin: 0 auto;
+}
+
+h1 {
+  text-transform: uppercase;
+}
+
+
+html,
+body {
+  height: 100%;
+}
+
+main {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 1rem;
+}
+
+.status {
+  flex: 1;
+}
+
+.controls {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+}
+
+.columns {
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+}
+
+.column {
+  display: flex;
+  flex-direction: column;
+  cursor: pointer;
+
+  /* clear button stuff */
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+}
+
+.columns,
+.column {
+  gap: 0.25rem;
+}
+
+.piece {
+  height: 2rem;
+  width: 2rem;
+  border-radius: 50%;
+}
+
+.piece.empty {
+  border: 2px solid #246EB9;
+}
+
+.piece.p1 {
+  background-color: #92140C;
+}
+
+.p1 {
+  color: #92140C;
+}
+
+.piece.p2 {
+  background-color: #EDD83D;
+}
+
+.p2 {
+  color: #EDD83D;
+}
+
+form {
+  align-self: center;
+}
+
+.players {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+input,
+select {
+  width: 100%;
+  background-color: #246EB9;
+  color: #111D4A;
+  border: 0;
+  border-radius: 6px;
+  padding-left: 0.5rem;
+}
+
+input::placeholder {
+  color: #3d445f;
+}
+
+fieldset {
+  padding: 0;
+  max-width: 20ch;
+  text-align: left;
+  border-color: #246EB9;
+}
+
+fieldset>legend {
+  margin: 0 0.75rem;
+}
+
+fieldset>div {
+  margin: 0.75rem;
+}
+
+form>* {
+  margin: 1rem 0;
+}
+
+.button {
+  background: #246EB9;
+  color: #111D4A;
+  border: 2px solid #111D4A;
+  border-radius: 6px;
+  transition: all 0.2s ease-out;
+  padding: 6px;
+}
+
+.button:hover {
+  background: #111D4A;
+  color: #246EB9;
+  border-color: #246EB9;
+}
+
+.visually-hidden {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important
+}
